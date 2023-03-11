@@ -26,7 +26,7 @@ addEventListener('load', () => {
     merge(db, {confirm: {msg: `Open the bookmark folder "${title}" in new ${!db.incognito ? "" : "private"} window?`,
                          onSuccess: [`-open`, id]}}));
   rf.regEventFx(`-open`, [rf.unwrap], ({db: {incognito}}, id) => ({$open: {bookmarkFolder: id, incognito}}));
-  rf.regEventDb('unlink', [rf.trimV], (db, [id, title]) =>
+  rf.regEventDb('unlink', [rf.trimV], (db, [{id, title}]) =>
     merge(db, {confirm: {msg: `Unlink the bookmark folder "${title}" from this window?`, onSuccess: [`-unlink`, id]}}));
   rf.regEventFx(`-unlink`, [rf.unwrap], ({db}, id) => ({$unlink: {windowId: db.window}}));
   rf.regEventDb('bookmark', [rf.trimV], (db, [parent, title]) =>
@@ -70,11 +70,11 @@ addEventListener('load', () => {
             ['button', {title: "Sync window tabs in subfolder", onclick: () => rf.disp(['bookmark', id, title])}, "+"]],
         children && [BookmarkFolderTree, children, synced]])];
 
-  let WindowInfo = ([id, {title, size}] = [['window'], ['bookmark*']].map(rf.dsub)) =>
+  let WindowInfo = ([id, bookmark] = [['window'], ['bookmark*']].map(rf.dsub)) =>
     ['.bookmark.sync', {class: {mark: rf.dsub(['mark', id])}},
-      ['code', size], " ", title, " ",
-      ['button', {title: "Update bookmarks", onclick: () => rf.disp('sync')}, "sync"],
-      ['button', {title: "Stop updating bookmarks", onclick: () => rf.disp('unlink')}, "unlink"]];
+      ['code', bookmark.size], " ", bookmark.title, " ",
+      ['button', {title: "Update bookmarks", onclick: () => rf.disp(['sync'])}, "sync"],
+      ['button', {title: "Stop updating bookmarks", onclick: () => rf.disp(['unlink', bookmark])}, "unlink"]];
 
   let App = () =>
     ['main', [Confirm],

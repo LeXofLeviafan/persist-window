@@ -25,7 +25,7 @@ let toStructure = xs => xs.map(x => x.title).reduce((o, s, i) => {
   return o;
 }, {res: [], stack: []}).res.map(n => ({parent: n}));
 
-let eqTabs = (xs, ys=[]) =>
+let eqTabs = (xs, ys) =>
   (xs.length === ys.length) && xs.every((x, i) => (x.title === ys[i].title) && (x.url === ys[i].url));
 
 let [$tabs, $sync, $mark] = ['.tabs', '.sync', '.mark'].map(k => ({
@@ -42,37 +42,35 @@ let openInNewWindow = (bookmarkFolder, incognito) =>
       browser.runtime.sendMessage(TREE, {type: 'set-tree-structure', tabs: '*', structure: toStructure(bookmarks)})
         .catch(console.warn).then(_ => new Promise(resolve => setTimeout(() => resolve(window), 1000)))));
 
+let getTabs = windowId => browser.runtime.sendMessage(TREE, {type: 'get-tree', window: windowId})
+                            .catch(() => browser.tabs.query({windowId})).then(tablist);
+
 let bookmarkTabs = (windowId, title, parentId) =>
-  Promise.all([$tabs.get(windowId), browser.bookmarks.create({parentId, title})]).then(([tabs=[], {id}]) =>
+  Promise.all([getTabs(windowId), browser.bookmarks.create({parentId, title})]).then(([tabs=[], {id}]) =>
     tabs.reduce((p, tab) => p.then(() => browser.bookmarks.create({parentId: id, ...tab})), Promise.resolve())
       .then(() => id));
 
-let sync = windowId =>
-  browser.runtime.sendMessage(TREE, {type: 'get-tree', window: windowId}).catch(() => browser.tabs.query({windowId}))
-    .then(tablist).then(tabs => $window.get(windowId).then(([oldtabs, sync]) => {
-      sync && browser.action.setBadgeText({windowId, text: `${tabs.length}`});
-      if (eqTabs(tabs, oldtabs)) return;
-      if (sync) {
-        browser.alarms.create(`${windowId}`, {delayInMinutes: .2});
-        browser.action.setBadgeBackgroundColor({windowId, color: 'yellow'});
-        $mark.set(windowId, true);
-      }
-      return $tabs.set(windowId, tabs);
-    }));
+let sync = windowId => $sync.get(windowId).then(sync =>
+  sync && Promise.all([getTabs(windowId), $tabs.get(windowId)]).then(([tabs, oldtabs]) => {
+    browser.action.setBadgeText({windowId, text: `${tabs.length}`});
+    if (oldtabs && !eqTabs(tabs, oldtabs)) {
+      browser.alarms.create(`${windowId}`, {delayInMinutes: .2});
+      browser.action.setBadgeBackgroundColor({windowId, color: 'yellow'});
+      $mark.set(windowId, true);
+    }
+    return $tabs.set(windowId, tabs);
+  }));
 
-let setBookmarks = (windowId, bookmarkFolder) => {
-  $tabs.get(windowId).then(tabs => browser.action.setBadgeText({windowId, text: `${tabs?.length || 0}`}));
-  return $sync.set(windowId, bookmarkFolder);
-};
+let setBookmarks = (windowId, bookmarkFolder) => $sync.set(windowId, bookmarkFolder).then(() => sync(windowId));
 
 let updateBookmarks = windowId => $window.get(windowId).then(([tabs, sync]) =>
   sync && tabs && browser.bookmarks.getChildren(sync).then(bookmarklist).then(bookmarks => {
     if (!eqTabs(tabs, bookmarks)) {  // primitive implementation – not trying to match the URLs
-      bookmarks.slice(0, tabs.length).forEach(({id}, i) => browser.bookmarks.update(id, tabs[i]));
+      bookmarks.slice(0, tabs.length).forEach((x, i) => eqTabs([x], [tabs[i]]) || browser.bookmarks.update(x.id, tabs[i]));
       bookmarks.slice(tabs.length).forEach(({id}) => browser.bookmarks.remove(id));
       $forEach(tabs.slice(bookmarks.length), tab => browser.bookmarks.create({parentId: sync, ...tab}));
     }
-    browser.action.setBadgeBackgroundColor({windowId, color: 'green'});
+    browser.action.setBadgeBackgroundColor({windowId, color: 'green'});  // logs a warning if the window is closed
     $mark.remove(windowId);
   }));
 
@@ -114,7 +112,7 @@ browser.runtime.onMessage.addListener(({type, windowId, bookmarkFolder, incognit
   if (type === 'bookmark')
     bookmarkTabs(windowId, bookmarkFolder, parentId).then(id => setBookmarks(windowId, id));
   else if (type === 'unlink')
-    $sync.remove(windowId).then(() => browser.action.setBadgeText({windowId, text: ""}));
+    $window.remove(windowId).then(() => browser.action.setBadgeText({windowId, text: ""}));
   else if (type === 'open')
     openInNewWindow(bookmarkFolder, incognito).then(({id}) => sync(id)?.then(() => setBookmarks(id, bookmarkFolder)));
   else if (type === 'sync')

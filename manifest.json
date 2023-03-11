@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "version": "0.0.1",
+  "version": "0.0.2",
   "name": "Persist Window",
   "description": "Keep your window tabs stored as a bookmarks folder, updated automatically.",
   "icons": {
