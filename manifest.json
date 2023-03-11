@@ -1,0 +1,37 @@
+{
+  "manifest_version": 3,
+  "version": "0.0.1",
+  "name": "Persist Window",
+  "description": "Keep your window tabs stored as a bookmarks folder, updated automatically.",
+  "icons": {
+    "48": "icon/bookmark-48.png"
+  },
+
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "persist-window@lexofleviafan.github.io"
+    }
+  },
+
+  "permissions": [
+    "tabs",
+    "bookmarks",
+    "storage",
+    "alarms"
+  ],
+
+  "background": {
+    "scripts": ["background.js"]
+  },
+
+  "action": {
+    "default_title": "Persist Window",
+    "default_popup": "popup.html",
+    "default_icon": "icon/bookmark-32.png",
+    "theme_icons": [{
+        "light": "icon/bookmark-32-light.png",
+        "dark": "icon/bookmark-32.png",
+        "size": 32
+    }]
+  }
+}

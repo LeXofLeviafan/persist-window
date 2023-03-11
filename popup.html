@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html><head>
+  <meta charset="utf-8">
+  <script src="lib/mreframe@0.1.5.min.js"></script>
+  <script src="js/popup.js"></script>
+  <style>
+    body {
+      min-width: 300px;
+      background: dimgrey;
+      color: white;
+    }
+
+    .bookmark code {
+      white-space: pre-wrap;
+      padding: 2px;
+      border-radius: 3px;
+      background: darkgrey;
+      color: black;
+    }
+    .bookmark.sync code {
+      background: green;
+      color: white;
+    }
+    .bookmark.sync.mark code {
+      background: yellow;
+      color: black;
+    }
+    .bookmark.sync {
+      background: #FFFFFF44;
+    }
+    .bookmark.current {
+      border: 1px solid white;
+    }
+
+    ul {
+      padding-left: 1em;
+    }
+    :not(li) > ul {
+      padding: 0;
+    }
+
+    .confirm {
+      background: darkgrey;
+      padding: 1em;
+      max-height: 100vh;
+      max-width: min(100vh, 500px);
+      min-width: min(80%, 500px);
+      position: fixed;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      overflow: auto;
+    }
+    .confirm input {
+      max-width: calc(100% - 1em);
+    }
+    .confirm .buttons {
+      float: right;
+    }
+  </style>
+</head><body>
+  <h1>UNKNOWN ERROR</h1>
+</body></html>

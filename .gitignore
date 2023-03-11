@@ -1,0 +1,7 @@
+*~
+*.xpi
+*.zip
+.*
+!.gitignore
+!/icon/.*
+node_modules/
