@@ -72,7 +72,7 @@ addEventListener('load', () => {
 
   let WindowInfo = ([id, bookmark] = [['window'], ['bookmark*']].map(rf.dsub)) =>
     ['.bookmark.sync', {class: {mark: rf.dsub(['mark', id])}},
-      ['code', bookmark.size], " ", bookmark.title, " ",
+      ['code', bookmark?.size], " ", bookmark?.title, " ",
       ['button', {title: "Update bookmarks", onclick: () => rf.disp(['sync'])}, "sync"],
       ['button', {title: "Stop updating bookmarks", onclick: () => rf.disp(['unlink', bookmark])}, "unlink"]];
 
