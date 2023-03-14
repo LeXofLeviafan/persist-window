@@ -24,7 +24,7 @@ date. (Only Firefox is supported as of now.)
 * Open all the bookmarks within a folder in a new window and continue a previous
   session (`open` button in the popup panel, next to existing unlinked folders;
   the window will be private _if the current window is private_)  
-  **Note: only `http(s)`, `ftp` and `file` URLs are opened/saved**
+  **Note: only `http(s)` and `ftp` URLs are opened/saved**
 
 * Stop saving your tabs at any time – mostly useful for creating a new folder to
   keep the old one as a sort of backup (`unlink` button in the popup panel)

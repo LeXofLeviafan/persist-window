@@ -5,7 +5,7 @@ addEventListener('load', () => {
 
   const RE = {sync: /\.sync$/, mark: /\.mark$/};
 
-  let valid = x => x?.url?.match(/^(https?|ftp|file):/);
+  let valid = x => x?.url?.match(/^(https?|ftp):/);
   let bookmarkDirs = bookmarks => bookmarks.filter(x => x.children).map(({id, title, children}) =>
     ({id, title, size: children.filter(valid).length, children: bookmarkDirs(children)}));
 

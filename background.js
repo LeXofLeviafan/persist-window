@@ -1,9 +1,11 @@
 const TREE = 'treestyletab@piro.sakura.ne.jp';
 let _storage = browser.storage.session || browser.storage.local;
 
-let valid = ({url}) => `${url}`.match(/^(https?|ftp|file):/);
+let valid = ({url}) => `${url}`.match(/^(https?|ftp):/);
 let groupBy = (xs, f) => xs.reduce((o, x, k) => ((k = f(x)), (o[k] = o[k]||[]).push(x), o), {});
+let mapKeys = (o, f) => Object.fromEntries(Object.keys(o).map(k => [f(k, o[k]), o[k]]));
 let $forEach = (xs, f) => xs.reduce((p, x) => p.then(() => f(x)), Promise.resolve());
+let $delay = (seconds, f) => new Promise(resolve => setTimeout(() => resolve(f()), seconds*1000));
 
 let tablist = (tabs, prefix='') => tabs.flatMap(({title, url, children=[]}) =>
   [{title: (!prefix ? title : `${prefix} ${title}`), url}, ...tablist(children, prefix+'>')]).filter(valid);
@@ -28,19 +30,21 @@ let toStructure = xs => xs.map(x => x.title).reduce((o, s, i) => {
 let eqTabs = (xs, ys) =>
   (xs.length === ys.length) && xs.every((x, i) => (x.title === ys[i].title) && (x.url === ys[i].url));
 
-let [$tabs, $sync, $mark] = ['.tabs', '.sync', '.mark'].map(k => ({
-  get: windowId => _storage.get(windowId+k).then(({[windowId+k]: x}) => x),
-  set: (windowId, x) => _storage.set({[windowId+k]: x}),
-  remove: windowId => _storage.remove(windowId+k),
-}));
-let $window = Object.fromEntries(['get', 'remove'].map(k =>
-  [k, id => Promise.all([$tabs, $sync, $mark].map(x => x[k](id)))]));
+let Store = (KEYS, {prefix = '', key = id => (k => `${prefix}${id}.${k}`)}={}) => ({
+  get: id => _storage.get(KEYS.map( key(id) )).then(o => mapKeys(o, k => k.replace(/^.*\./, ""))),
+  set: (id, o) => _storage.set( mapKeys(o, key(id)) ),
+  remove: id => _storage.remove(KEYS.map( key(id) )),
+});
+let $window = Store(['tabs', 'sync', 'mark']);
 
-let openInNewWindow = (bookmarkFolder, incognito) =>
-  browser.bookmarks.getChildren(bookmarkFolder).then(bookmarklist).then(bookmarks =>
-    browser.windows.create({incognito, url: bookmarks.map(x => x.url)}).then(window =>
-      browser.runtime.sendMessage(TREE, {type: 'set-tree-structure', tabs: '*', structure: toStructure(bookmarks)})
-        .catch(console.warn).then(_ => new Promise(resolve => setTimeout(() => resolve(window), 1000)))));
+let openDiscarded = (windowId, tabs) => $forEach(tabs, tab => browser.tabs.create({windowId, discarded: true, ...tab}));
+
+let openInNewWindow = (bookmarkFolder, {incognito}={}) =>
+  browser.bookmarks.getChildren(bookmarkFolder).then(bookmarklist).then(tabs =>
+    browser.windows.create({incognito, url: tabs[0]?.url}).then(window =>
+      openDiscarded(window.id, tabs.slice(1).map(({url, title}) => ({url, title: title.replace(/^>+ /, "")}))).then(() =>
+        browser.runtime.sendMessage(TREE, {type: 'set-tree-structure', tabs: '*', structure: toStructure(tabs)})
+          .catch(console.warn).then(() => $delay(1, () => window)))));
 
 let getTabs = windowId => browser.runtime.sendMessage(TREE, {type: 'get-tree', window: windowId})
                             .catch(() => browser.tabs.query({windowId})).then(tablist);
@@ -50,20 +54,20 @@ let bookmarkTabs = (windowId, title, parentId) =>
     tabs.reduce((p, tab) => p.then(() => browser.bookmarks.create({parentId: id, ...tab})), Promise.resolve())
       .then(() => id));
 
-let sync = windowId => $sync.get(windowId).then(sync =>
-  sync && Promise.all([getTabs(windowId), $tabs.get(windowId)]).then(([tabs, oldtabs]) => {
+let sync = windowId => $window.get(windowId).then(({sync, tabs: oldtabs}) =>
+  sync && getTabs(windowId).then(tabs => {
     browser.action.setBadgeText({windowId, text: `${tabs.length}`});
-    if (oldtabs && !eqTabs(tabs, oldtabs)) {
+    let mark = oldtabs && !eqTabs(tabs, oldtabs);
+    if (mark) {
       browser.alarms.create(`${windowId}`, {delayInMinutes: .2});
       browser.action.setBadgeBackgroundColor({windowId, color: 'yellow'});
-      $mark.set(windowId, true);
     }
-    return $tabs.set(windowId, tabs);
+    return $window.set(windowId, {tabs, mark});
   }));
 
-let setBookmarks = (windowId, bookmarkFolder) => $sync.set(windowId, bookmarkFolder).then(() => sync(windowId));
+let setBookmarks = (windowId, bookmarkFolder) => $window.set(windowId, {sync: bookmarkFolder}).then(() => sync(windowId));
 
-let updateBookmarks = windowId => $window.get(windowId).then(([tabs, sync]) =>
+let updateBookmarks = windowId => $window.get(windowId).then(({tabs, sync}) =>
   sync && tabs && browser.bookmarks.getChildren(sync).then(bookmarklist).then(bookmarks => {
     if (!eqTabs(tabs, bookmarks)) {  // primitive implementation – not trying to match the URLs
       bookmarks.slice(0, tabs.length).forEach((x, i) => eqTabs([x], [tabs[i]]) || browser.bookmarks.update(x.id, tabs[i]));
@@ -71,7 +75,7 @@ let updateBookmarks = windowId => $window.get(windowId).then(([tabs, sync]) =>
       $forEach(tabs.slice(bookmarks.length), tab => browser.bookmarks.create({parentId: sync, ...tab}));
     }
     browser.action.setBadgeBackgroundColor({windowId, color: 'green'});  // logs a warning if the window is closed
-    $mark.remove(windowId);
+    $window.set({mark: false});
   }));
 
 
@@ -114,7 +118,7 @@ browser.runtime.onMessage.addListener(({type, windowId, bookmarkFolder, incognit
   else if (type === 'unlink')
     $window.remove(windowId).then(() => browser.action.setBadgeText({windowId, text: ""}));
   else if (type === 'open')
-    openInNewWindow(bookmarkFolder, incognito).then(({id}) => sync(id)?.then(() => setBookmarks(id, bookmarkFolder)));
+    openInNewWindow(bookmarkFolder, {incognito}).then(({id}) => sync(id)?.then(() => setBookmarks(id, bookmarkFolder)));
   else if (type === 'sync')
     updateBookmarks(windowId);
 });
