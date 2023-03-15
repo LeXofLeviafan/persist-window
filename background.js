@@ -32,7 +32,7 @@ let eqTabs = (xs, ys) =>
 
 let Store = (KEYS, {prefix = '', key = id => (k => `${prefix}${id}.${k}`)}={}) => ({
   get: id => _storage.get(KEYS.map( key(id) )).then(o => mapKeys(o, k => k.replace(/^.*\./, ""))),
-  set: (id, o) => _storage.set( mapKeys(o, key(id)) ),
+  set: (id, ...os) => _storage.set( mapKeys(Object.assign({}, ...os), key(id)) ),
   remove: id => _storage.remove(KEYS.map( key(id) )),
 });
 let $window = Store(['tabs', 'sync', 'mark']);
@@ -62,7 +62,7 @@ let sync = windowId => $window.get(windowId).then(({sync, tabs: oldtabs}) =>
       browser.alarms.create(`${windowId}`, {delayInMinutes: .2});
       browser.action.setBadgeBackgroundColor({windowId, color: 'yellow'});
     }
-    return $window.set(windowId, {tabs, mark});
+    return $window.set(windowId, {tabs}, mark && {mark});
   }));
 
 let setBookmarks = (windowId, bookmarkFolder) => $window.set(windowId, {sync: bookmarkFolder}).then(() => sync(windowId));
@@ -75,7 +75,7 @@ let updateBookmarks = windowId => $window.get(windowId).then(({tabs, sync}) =>
       $forEach(tabs.slice(bookmarks.length), tab => browser.bookmarks.create({parentId: sync, ...tab}));
     }
     browser.action.setBadgeBackgroundColor({windowId, color: 'green'});  // logs a warning if the window is closed
-    $window.set({mark: false});
+    $window.set(windowId, {mark: false});
   }));
 
 
