@@ -1,10 +1,11 @@
 const TREE = 'treestyletab@piro.sakura.ne.jp';
 let _storage = browser.storage.session || browser.storage.local;
 
+let percent = (n, m) => Math.floor(100 * n / m);  // for progress notifications
 let valid = ({url}) => `${url}`.match(/^(https?|ftp):/);
 let groupBy = (xs, f) => xs.reduce((o, x, k) => ((k = f(x)), (o[k] = o[k]||[]).push(x), o), {});
 let mapKeys = (o, f) => Object.fromEntries(Object.keys(o).map(k => [f(k, o[k]), o[k]]));
-let $forEach = (xs, f) => xs.reduce((p, x) => p.then(() => f(x)), Promise.resolve());
+let $forEach = (xs, f) => xs.reduce((p, x, i) => p.then(() => f(x, i)), Promise.resolve());
 let $delay = (seconds, f) => new Promise(resolve => setTimeout(() => resolve(f()), seconds*1000));
 
 let tablist = (tabs, prefix='') => tabs.flatMap(({title, url, children=[]}) =>
@@ -37,14 +38,37 @@ let Store = (KEYS, {prefix = '', key = id => (k => `${prefix}${id}.${k}`)}={}) =
 });
 let $window = Store(['tabs', 'sync', 'mark']);
 
-let openDiscarded = (windowId, tabs) => $forEach(tabs, tab => browser.tabs.create({windowId, discarded: true, ...tab}));
+let notify = (id, {title, ...params}, type=('progress' in params ? 'progress' : 'basic')) =>
+  browser.notifications.create(`${id}`,
+    {type, iconUrl: "icon/bookmark-48.png", title: "Persist Window" + (!title ? "" : ` (${title})`), ...params});
 
-let openInNewWindow = (bookmarkFolder, {incognito}={}) =>
-  browser.bookmarks.getChildren(bookmarkFolder).then(bookmarklist).then(tabs =>
-    browser.windows.create({incognito, url: tabs[0]?.url}).then(window =>
-      openDiscarded(window.id, tabs.slice(1).map(({url, title}) => ({url, title: title.replace(/^>+ /, "")}))).then(() =>
-        browser.runtime.sendMessage(TREE, {type: 'set-tree-structure', tabs: '*', structure: toStructure(tabs)})
-          .catch(console.warn).then(() => $delay(1, () => window)))));
+let notifyProgress = (id, n, m) => notify(id, {message: `Opening tabs… (${n} / ${m})`, progress: percent(n, m)});
+
+let openDiscarded = (windowId, tabs, progress) => $forEach(tabs, (tab, idx) =>
+  browser.tabs.create({windowId, discarded: true, ...tab}).then(() => progress && progress(idx+1)));
+
+let openInNewWindow = async (bookmarkFolder, {incognito}={}) => {
+  let tabs = await browser.bookmarks.getChildren(bookmarkFolder).then(bookmarklist);
+  let window = await browser.windows.create({incognito, url: tabs[0]?.url});
+  await notify(window.id, {message: "Opening tabs…", progress: 0});
+  let _blocker = (message, sender) =>  // temporarily block new tabs handling for this window
+    (sender.id == TREE) && (['try-handle-newtab', 'try-fixup-tree-on-tab-moved'].includes(message.type)) &&
+      (message.tab.windowId == window.id) && Promise.resolve(true);
+  try {
+    browser.runtime.onMessageExternal.addListener(_blocker);
+    await openDiscarded(window.id, tabs.slice(1).map(({url, title}) => ({url, title: title.replace(/^>+ /, "")})),
+      idx => (idx % 20 == 0) && notifyProgress(window.id, idx, tabs.length));
+    await browser.runtime.sendMessage(TREE, {type: 'set-tree-structure', window: window.id, tabs: '*', structure: toStructure(tabs)})
+      .catch(console.warn);
+    await notifyProgress(window.id, tabs.length, tabs.length);
+  } catch (error) {
+    notify(window.id, {title: "error", message: `${error}`});
+    throw error;
+  } finally {
+    browser.runtime.onMessageExternal.removeListener(_blocker);
+  }
+  return $delay(1, () => window);
+}
 
 let getTabs = windowId => browser.runtime.sendMessage(TREE, {type: 'get-tree', window: windowId})
                             .catch(() => browser.tabs.query({windowId})).then(tablist);
@@ -118,7 +142,8 @@ browser.runtime.onMessage.addListener(({type, windowId, bookmarkFolder, incognit
   else if (type === 'unlink')
     $window.remove(windowId).then(() => browser.action.setBadgeText({windowId, text: ""}));
   else if (type === 'open')
-    openInNewWindow(bookmarkFolder, {incognito}).then(({id}) => sync(id)?.then(() => setBookmarks(id, bookmarkFolder)));
+    openInNewWindow(bookmarkFolder, {incognito}).then(({id}) =>
+      sync(id)?.then(() => setBookmarks(id, bookmarkFolder)).then(() => notify(id, {message: "Finished"})));
   else if (type === 'sync')
     updateBookmarks(windowId);
 });

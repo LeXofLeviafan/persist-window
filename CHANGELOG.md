@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.0.6] - 2025-05-24
+
+### Added
+
+- Progress notifications when opening a new window
+
+### Changed
+
+- Paused TST events in the window that is being opened (for the duration of the process)
+
+### Fixed
+
+- Fixed tabs tree being applied to a wrong window (if switched out during tab opening)
+
+
 ## [0.0.5] - 2023-03-15
 
 ### Added
@@ -69,6 +84,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.0.1] - 2023-03-11
 
 
+[0.0.6]: https://github.com/LeXofLeviafan/persist-window/compare/v0.0.5...v0.0.6
 [0.0.5]: https://github.com/LeXofLeviafan/persist-window/compare/v0.0.4...v0.0.5
 [0.0.4]: https://github.com/LeXofLeviafan/persist-window/compare/v0.0.3...v0.0.4
 [0.0.3]: https://github.com/LeXofLeviafan/persist-window/compare/v0.0.2...v0.0.3

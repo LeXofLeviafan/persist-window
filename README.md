@@ -38,7 +38,12 @@ date. (Only Firefox is supported as of now.)
 
 * The [Tree Style Tab](https://addons.mozilla.org/en-US/firefox/addon/tree-style-tab)
   extension is supported: bookmark trees are saved as such, and they're `open`ed
-  as trees (this requires giving user permission in the TST preferences)
+  as trees (this requires giving user permission in the TST preferences)  
+  **Note: disabling TST will flatten any active bookmark trees**
+
+_Important: to avoid DDoS, only the 1st tab of new window is loaded immediately.
+This takes additional time; so when opening a large number of bookmarks at once,
+wait for the process to complete before interacting with tabs in the window._
 
 ## Implementation notes
 

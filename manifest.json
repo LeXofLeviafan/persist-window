@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "version": "0.0.5",
+  "version": "0.0.6",
   "name": "Persist Window",
   "description": "Keep your window tabs stored as a bookmarks folder, updated automatically.",
   "homepage_url": "https://github.com/LeXofLeviafan/persist-window",
@@ -18,7 +18,8 @@
     "tabs",
     "bookmarks",
     "storage",
-    "alarms"
+    "alarms",
+    "notifications"
   ],
 
   "background": {
