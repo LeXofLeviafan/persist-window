@@ -6,11 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.0.8] - 2025-06-01
+
+### Changed
+
+- Moved the blank tab removal to before tree nesting is applied
+- Improved opening progress notifications
+
+### Fixed
+
+- Fixed the error when trying to open an empty bookmark folder
+
+
 ## [0.0.7] - 2025-05-31
 
 ### Changed
 
-- Limited sync rate per window (just in case in is an issue)
+- Limited sync rate per window (just in case it is an issue)
 
 ### Fixed
 
@@ -95,6 +107,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.0.1] - 2023-03-11
 
 
+[0.0.8]: https://github.com/LeXofLeviafan/persist-window/compare/v0.0.7...v0.0.8
 [0.0.7]: https://github.com/LeXofLeviafan/persist-window/compare/v0.0.6...v0.0.7
 [0.0.6]: https://github.com/LeXofLeviafan/persist-window/compare/v0.0.5...v0.0.6
 [0.0.5]: https://github.com/LeXofLeviafan/persist-window/compare/v0.0.4...v0.0.5

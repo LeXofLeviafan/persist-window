@@ -1,7 +1,7 @@
 const TREE = 'treestyletab@piro.sakura.ne.jp';
 let _storage = browser.storage.session || browser.storage.local;
 
-let percent = (n, m) => Math.floor(100 * n / m);  // for progress notifications
+let percent = (n, m) => Math.floor(100 * (!m ? 1 : n / m));  // for progress notifications
 let valid = ({url}) => `${url}`.match(/^(https?|ftp):/);
 let groupBy = (xs, f) => xs.reduce((o, x, k) => ((k = f(x)), (o[k] = o[k]||[]).push(x), o), {});
 let mapKeys = (o, f) => Object.fromEntries(Object.keys(o).map(k => [f(k, o[k]), o[k]]));
@@ -62,18 +62,18 @@ let openInNewWindow = async (bookmarkFolder, {incognito}={}) => {
     browser.runtime.onMessageExternal.addListener(_blocker);
     await openDiscarded(window.id, tabs.map(({url, title}) => ({url, title: title.replace(/^>+ /, "")})),
       idx => (idx % 20 == 0) && notifyProgress(window.id, idx, tabs.length));
-    let structure = [[{parent: -1}], ...toStructure(tabs)];
-    await browser.runtime.sendMessage(TREE, {type: 'set-tree-structure', window: window.id, tabs: '*', structure})
-      .catch(console.warn);
     (tabs.length > 0) && await browser.tabs.remove(_blank.id);
     await notifyProgress(window.id, tabs.length, tabs.length);
+    await browser.runtime.sendMessage(TREE, {type: 'set-tree-structure', window: window.id, tabs: '*', structure: toStructure(tabs)})
+      .catch(console.warn);
+    await notify(window.id, {message: "Activating sync…"});
   } catch (error) {
     notify(window.id, {title: "error", message: `${error}`});
     throw error;
   } finally {
     browser.runtime.onMessageExternal.removeListener(_blocker);
   }
-  return $delay(1, () => window);
+  return window;
 }
 
 let getTabs = windowId => browser.runtime.sendMessage(TREE, {type: 'get-tree', window: windowId})
