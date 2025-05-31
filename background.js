@@ -7,6 +7,10 @@ let groupBy = (xs, f) => xs.reduce((o, x, k) => ((k = f(x)), (o[k] = o[k]||[]).p
 let mapKeys = (o, f) => Object.fromEntries(Object.keys(o).map(k => [f(k, o[k]), o[k]]));
 let $forEach = (xs, f) => xs.reduce((p, x, i) => p.then(() => f(x, i)), Promise.resolve());
 let $delay = (seconds, f) => new Promise(resolve => setTimeout(() => resolve(f()), seconds*1000));
+let debounce = (seconds, f, last={}) => (...args) => {
+  clearTimeout(last[args]);   delete last[args];
+  last[args] = setTimeout(() => f(...args), seconds*1000);
+};
 
 let tablist = (tabs, prefix='') => tabs.flatMap(({title, url, children=[]}) =>
   [{title: (!prefix ? title : `${prefix} ${title}`), url}, ...tablist(children, prefix+'>')]).filter(valid);
@@ -49,17 +53,19 @@ let openDiscarded = (windowId, tabs, progress) => $forEach(tabs, (tab, idx) =>
 
 let openInNewWindow = async (bookmarkFolder, {incognito}={}) => {
   let tabs = await browser.bookmarks.getChildren(bookmarkFolder).then(bookmarklist);
-  let window = await browser.windows.create({incognito, url: tabs[0]?.url});
+  let window = await browser.windows.create({incognito}),  _blank = window.tabs[0];
   await notify(window.id, {message: "Opening tabs…", progress: 0});
   let _blocker = (message, sender) =>  // temporarily block new tabs handling for this window
     (sender.id == TREE) && (['try-handle-newtab', 'try-fixup-tree-on-tab-moved'].includes(message.type)) &&
       (message.tab.windowId == window.id) && Promise.resolve(true);
   try {
     browser.runtime.onMessageExternal.addListener(_blocker);
-    await openDiscarded(window.id, tabs.slice(1).map(({url, title}) => ({url, title: title.replace(/^>+ /, "")})),
+    await openDiscarded(window.id, tabs.map(({url, title}) => ({url, title: title.replace(/^>+ /, "")})),
       idx => (idx % 20 == 0) && notifyProgress(window.id, idx, tabs.length));
-    await browser.runtime.sendMessage(TREE, {type: 'set-tree-structure', window: window.id, tabs: '*', structure: toStructure(tabs)})
+    let structure = [[{parent: -1}], ...toStructure(tabs)];
+    await browser.runtime.sendMessage(TREE, {type: 'set-tree-structure', window: window.id, tabs: '*', structure})
       .catch(console.warn);
+    (tabs.length > 0) && await browser.tabs.remove(_blank.id);
     await notifyProgress(window.id, tabs.length, tabs.length);
   } catch (error) {
     notify(window.id, {title: "error", message: `${error}`});
@@ -88,6 +94,7 @@ let sync = windowId => $window.get(windowId).then(({sync, tabs: oldtabs}) =>
     }
     return $window.set(windowId, {tabs}, mark && {mark});
   }));
+let sync_ = debounce(.1, sync);
 
 let setBookmarks = (windowId, bookmarkFolder) => $window.set(windowId, {sync: bookmarkFolder}).then(() => sync(windowId));
 
@@ -114,7 +121,7 @@ browser.action.setBadgeBackgroundColor({color: 'green'});
   type: 'register-self',
   name: "Persist Window",
   icons: browser.runtime.getManifest().icons,
-  listeningTypes: ['tree-attached', 'tree-detached'],
+  listeningTypes: ['tree-attached', 'tree-detached', 'try-handle-newtab', 'try-fixup-tree-on-tab-moved'],
   permissions: ['tabs'],
 }).then(console.log).catch(console.warn));
 
@@ -133,7 +140,7 @@ browser.windows.onRemoved.addListener(id => updateBookmarks(id).then(() => $wind
 
 browser.runtime.onMessageExternal.addListener((message, sender) => {
   if ((sender.id == TREE) && ['tree-attached', 'tree-detached'].includes(message.type))
-    sync(message.tab.windowId);
+    sync_(message.tab.windowId);
 });
 
 browser.runtime.onMessage.addListener(({type, windowId, bookmarkFolder, incognito, parentId}) => {
